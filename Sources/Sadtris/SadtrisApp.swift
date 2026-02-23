@@ -3,15 +3,15 @@ import SwiftUI
 // MARK: - App Entry Point
 
 @main
-struct TetrisApp: App {
+struct SadtrisApp: App {
     var body: some Scene {
         WindowGroup {
             GameView()
-                .frame(width: 630, height: 620)
+                .frame(width: 630, height: 680)
                 .background(Color.black)
         }
         .windowResizability(.contentSize)
-        .defaultSize(width: 630, height: 620)
+        .defaultSize(width: 630, height: 680)
     }
 }
 
@@ -149,8 +149,8 @@ class GameState: ObservableObject {
     @Published var isEnteringName: Bool = false
     @Published var enteredInitials: String = ""
 
-    private static let highScoresKey = "TetrisHighScores"
-    private static let lastNameKey = "TetrisLastName"
+    private static let highScoresKey = "SadtrisHighScores"
+    private static let lastNameKey = "SadtrisLastName"
     private static let maxHighScores = 5
 
     // Hold piece
@@ -1071,6 +1071,43 @@ struct KeyEventHandling: NSViewRepresentable {
     }
 }
 
+// MARK: - Sad Header
+
+struct SadHeader: View {
+    let sadMessages = [
+        "WiFi not found...",
+        "Connection timed out",
+        "ERR_INTERNET_DISCONNECTED",
+        "No signal detected",
+        "404: Fun not found",
+        "Buffering forever...",
+        "Server is crying",
+        "DNS lookup failed :("
+    ]
+
+    @State private var currentMessage: String = ""
+
+    var body: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 8) {
+                Text(":(")
+                    .font(.system(size: 28, weight: .bold, design: .monospaced))
+                    .foregroundColor(.blue)
+                Text("SADTRIS")
+                    .font(.system(size: 28, weight: .black, design: .monospaced))
+                    .foregroundColor(.white)
+            }
+            Text(currentMessage)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(Color(white: 0.5))
+                .onAppear {
+                    currentMessage = sadMessages.randomElement() ?? sadMessages[0]
+                }
+        }
+        .padding(.top, 8)
+    }
+}
+
 // MARK: - Main Game View
 
 struct GameView: View {
@@ -1080,10 +1117,14 @@ struct GameView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            HStack(spacing: 20) {
-                LeftPanel(game: game)
-                BoardView(game: game)
-                InfoPanel(game: game)
+            VStack(spacing: 12) {
+                SadHeader()
+
+                HStack(spacing: 20) {
+                    LeftPanel(game: game)
+                    BoardView(game: game)
+                    InfoPanel(game: game)
+                }
             }
             .padding()
 

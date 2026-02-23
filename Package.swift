@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Tetris",
+    name: "Sadtris",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "Tetris",
-            path: "Sources/Tetris"
+            name: "Sadtris",
+            path: "Sources/Sadtris"
         )
     ]
 )
