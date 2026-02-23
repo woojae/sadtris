@@ -7,11 +7,11 @@ struct TetrisApp: App {
     var body: some Scene {
         WindowGroup {
             GameView()
-                .frame(width: 480, height: 620)
+                .frame(width: 600, height: 620)
                 .background(Color.black)
         }
         .windowResizability(.contentSize)
-        .defaultSize(width: 480, height: 620)
+        .defaultSize(width: 600, height: 620)
     }
 }
 
@@ -128,6 +128,12 @@ struct Cell {
     var color: Color = .clear
 }
 
+struct HighScoreEntry: Codable, Identifiable {
+    var id = UUID()
+    var name: String
+    var score: Int
+}
+
 class GameState: ObservableObject {
     @Published var board: [[Cell]]
     @Published var currentPiece: Piece
@@ -138,6 +144,13 @@ class GameState: ObservableObject {
     @Published var isGameOver: Bool = false
     @Published var isPaused: Bool = false
     @Published var ghostRow: Int = 0
+    @Published var highScores: [HighScoreEntry]
+    @Published var newHighScoreRank: Int? = nil
+    @Published var isEnteringName: Bool = false
+    @Published var enteredInitials: String = ""
+
+    private static let highScoresKey = "TetrisHighScores"
+    private static let maxHighScores = 5
 
     // Hold piece
     @Published var heldPiece: TetrominoType?
@@ -168,9 +181,64 @@ class GameState: ObservableObject {
         board = Array(repeating: Array(repeating: Cell(), count: Constants.cols), count: Constants.rows)
         currentPiece = Piece(type: TetrominoType.allCases.randomElement()!, rotation: 0, row: 0, col: 3)
         nextPiece = Piece(type: TetrominoType.allCases.randomElement()!, rotation: 0, row: 0, col: 3)
+        highScores = GameState.loadHighScores()
         updateGhost()
         startTimer()
         startGameLoop()
+    }
+
+    static func loadHighScores() -> [HighScoreEntry] {
+        guard let data = UserDefaults.standard.data(forKey: highScoresKey),
+              let scores = try? JSONDecoder().decode([HighScoreEntry].self, from: data) else {
+            return []
+        }
+        return scores
+    }
+
+    func saveHighScores() {
+        if let data = try? JSONEncoder().encode(highScores) {
+            UserDefaults.standard.set(data, forKey: GameState.highScoresKey)
+        }
+    }
+
+    func checkAndSaveHighScore() {
+        guard score > 0 else { return }
+
+        // Find where this score ranks
+        var rank: Int? = nil
+
+        for (index, entry) in highScores.enumerated() {
+            if score > entry.score {
+                rank = index
+                break
+            }
+        }
+
+        // If no rank found but we have room, add to end
+        if rank == nil && highScores.count < GameState.maxHighScores {
+            rank = highScores.count
+        }
+
+        if let rank = rank {
+            newHighScoreRank = rank
+            isEnteringName = true
+            enteredInitials = ""
+        }
+    }
+
+    func submitHighScore() {
+        guard let rank = newHighScoreRank else { return }
+
+        let name = enteredInitials.isEmpty ? "AAA" : enteredInitials.uppercased()
+        let entry = HighScoreEntry(name: String(name.prefix(3)), score: score)
+
+        highScores.insert(entry, at: rank)
+        if highScores.count > GameState.maxHighScores {
+            highScores.removeLast()
+        }
+
+        saveHighScores()
+        isEnteringName = false
     }
 
     func startGameLoop() {
@@ -392,6 +460,7 @@ class GameState: ObservableObject {
 
         if !isValid(currentPiece) {
             isGameOver = true
+            checkAndSaveHighScore()
             timer?.invalidate()
             gameLoopTimer?.invalidate()
         }
@@ -580,6 +649,7 @@ class GameState: ObservableObject {
 
         if !isValid(currentPiece) {
             isGameOver = true
+            checkAndSaveHighScore()
             timer?.invalidate()
             gameLoopTimer?.invalidate()
         }
@@ -605,6 +675,9 @@ class GameState: ObservableObject {
         lockDelayRemaining = 0
         lastMoveWasRotation = false
         lastTSpin = nil
+        newHighScoreRank = nil
+        isEnteringName = false
+        enteredInitials = ""
         leftKeyHeld = false
         rightKeyHeld = false
         dasTimer = 0
@@ -773,6 +846,85 @@ struct HoldPieceView: View {
     }
 }
 
+// MARK: - High Scores View
+
+struct HighScoresView: View {
+    let scores: [HighScoreEntry]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("HIGH SCORES")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(.gray)
+
+            if scores.isEmpty {
+                Text("No scores yet")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(Color(white: 0.4))
+            } else {
+                ForEach(Array(scores.enumerated()), id: \.1.id) { index, entry in
+                    HStack(spacing: 4) {
+                        Text("\(index + 1).")
+                            .frame(width: 14, alignment: .leading)
+                        Text(entry.name)
+                        Spacer()
+                        Text("\(entry.score)")
+                    }
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(Color(white: 0.6))
+                }
+            }
+        }
+        .padding(8)
+        .background(Color(white: 0.1))
+        .cornerRadius(8)
+    }
+}
+
+// MARK: - Initials Entry View
+
+struct InitialsEntryView: View {
+    @ObservedObject var game: GameState
+
+    var displayInitials: String {
+        let padded = game.enteredInitials.uppercased().padding(toLength: 3, withPad: "_", startingAt: 0)
+        return padded
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                ForEach(Array(displayInitials), id: \.self) { char in
+                    Text(String(char))
+                        .font(.system(size: 32, weight: .bold, design: .monospaced))
+                        .foregroundColor(char == "_" ? .gray : .yellow)
+                        .frame(width: 36, height: 44)
+                        .background(Color(white: 0.2))
+                        .cornerRadius(4)
+                }
+            }
+            Text("Type initials, Enter to confirm")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.gray)
+        }
+    }
+}
+
+// MARK: - Left Panel (Hold)
+
+struct LeftPanel: View {
+    @ObservedObject var game: GameState
+
+    var body: some View {
+        VStack {
+            HoldPieceView(pieceType: game.heldPiece, canHold: game.canHold)
+            HighScoresView(scores: game.highScores)
+            Spacer()
+        }
+        .frame(width: 100)
+    }
+}
+
 // MARK: - Info Panel
 
 struct InfoPanel: View {
@@ -780,7 +932,6 @@ struct InfoPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HoldPieceView(pieceType: game.heldPiece, canHold: game.canHold)
             NextPieceView(piece: game.nextPiece)
 
             statBlock(label: "SCORE", value: "\(game.score)")
@@ -833,6 +984,22 @@ struct KeyEventHandling: NSViewRepresentable {
 
         override func keyDown(with event: NSEvent) {
             guard let game = game else { return }
+
+            // Handle initials entry mode
+            if game.isEnteringName {
+                if event.keyCode == 36 { // Enter
+                    game.submitHighScore()
+                } else if event.keyCode == 51 { // Backspace
+                    if !game.enteredInitials.isEmpty {
+                        game.enteredInitials.removeLast()
+                    }
+                } else if let chars = event.characters?.uppercased(),
+                          let char = chars.first,
+                          char.isLetter && game.enteredInitials.count < 3 {
+                    game.enteredInitials.append(char)
+                }
+                return
+            }
 
             // Prevent key repeat for hard drop and hold
             if event.isARepeat && (event.keyCode == 49 || event.keyCode == 8) { return }
@@ -908,6 +1075,7 @@ struct GameView: View {
             Color.black.ignoresSafeArea()
 
             HStack(spacing: 20) {
+                LeftPanel(game: game)
                 BoardView(game: game)
                 InfoPanel(game: game)
             }
@@ -919,12 +1087,26 @@ struct GameView: View {
                     Text("GAME OVER")
                         .font(.system(size: 36, weight: .black, design: .monospaced))
                         .foregroundColor(.red)
+
                     Text("Score: \(game.score)")
                         .font(.system(size: 20, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
-                    Text("Press R to restart")
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundColor(.gray)
+
+                    if game.isEnteringName {
+                        VStack(spacing: 12) {
+                            Text("NEW HIGH SCORE!")
+                                .font(.system(size: 18, weight: .bold, design: .monospaced))
+                                .foregroundColor(.yellow)
+                            Text("Enter your initials:")
+                                .font(.system(size: 14, design: .monospaced))
+                                .foregroundColor(.gray)
+                            InitialsEntryView(game: game)
+                        }
+                    } else {
+                        Text("Press R to restart")
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundColor(.gray)
+                    }
                 }
                 .padding(32)
                 .background(Color.black.opacity(0.85))
