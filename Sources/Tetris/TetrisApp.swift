@@ -7,11 +7,11 @@ struct TetrisApp: App {
     var body: some Scene {
         WindowGroup {
             GameView()
-                .frame(width: 600, height: 620)
+                .frame(width: 630, height: 620)
                 .background(Color.black)
         }
         .windowResizability(.contentSize)
-        .defaultSize(width: 600, height: 620)
+        .defaultSize(width: 630, height: 620)
     }
 }
 
@@ -150,6 +150,7 @@ class GameState: ObservableObject {
     @Published var enteredInitials: String = ""
 
     private static let highScoresKey = "TetrisHighScores"
+    private static let lastNameKey = "TetrisLastName"
     private static let maxHighScores = 5
 
     // Hold piece
@@ -222,7 +223,8 @@ class GameState: ObservableObject {
         if let rank = rank {
             newHighScoreRank = rank
             isEnteringName = true
-            enteredInitials = ""
+            // Default to last used name
+            enteredInitials = UserDefaults.standard.string(forKey: GameState.lastNameKey) ?? ""
         }
     }
 
@@ -230,12 +232,16 @@ class GameState: ObservableObject {
         guard let rank = newHighScoreRank else { return }
 
         let name = enteredInitials.isEmpty ? "AAA" : enteredInitials.uppercased()
-        let entry = HighScoreEntry(name: String(name.prefix(3)), score: score)
+        let finalName = String(name.prefix(3))
+        let entry = HighScoreEntry(name: finalName, score: score)
 
         highScores.insert(entry, at: rank)
         if highScores.count > GameState.maxHighScores {
             highScores.removeLast()
         }
+
+        // Save the name for next time
+        UserDefaults.standard.set(finalName, forKey: GameState.lastNameKey)
 
         saveHighScores()
         isEnteringName = false
@@ -921,7 +927,7 @@ struct LeftPanel: View {
             HighScoresView(scores: game.highScores)
             Spacer()
         }
-        .frame(width: 100)
+        .frame(width: 130)
     }
 }
 
