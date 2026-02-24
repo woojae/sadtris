@@ -1,9 +1,111 @@
 import SwiftUI
+import AppKit
+
+// MARK: - App Icon Generation
+
+private func generateAppIcon() -> NSImage {
+    let size: CGFloat = 512
+    let image = NSImage(size: NSSize(width: size, height: size))
+
+    image.lockFocus()
+    guard let ctx = NSGraphicsContext.current?.cgContext else {
+        image.unlockFocus()
+        return image
+    }
+
+    let cornerRadius: CGFloat = 100
+    let fullRect = CGRect(x: 0, y: 0, width: size, height: size)
+
+    // Clip to rounded rect
+    let clipPath = CGPath(roundedRect: fullRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+    ctx.addPath(clipPath)
+    ctx.clip()
+
+    // Background: dark blue (BSOD-inspired)
+    ctx.setFillColor(CGColor(srgbRed: 0.0, green: 0.03, blue: 0.18, alpha: 1.0))
+    ctx.fill(fullRect)
+
+    // Subtle grid pattern
+    ctx.setStrokeColor(CGColor(srgbRed: 0.06, green: 0.09, blue: 0.25, alpha: 1.0))
+    ctx.setLineWidth(0.5)
+    let gridStep: CGFloat = 42
+    var g = gridStep
+    while g < size {
+        ctx.move(to: CGPoint(x: g, y: 0))
+        ctx.addLine(to: CGPoint(x: g, y: size))
+        ctx.move(to: CGPoint(x: 0, y: g))
+        ctx.addLine(to: CGPoint(x: size, y: g))
+        g += gridStep
+    }
+    ctx.strokePath()
+
+    // Tetris block helper
+    let bs: CGFloat = 42
+    func block(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat, _ gr: CGFloat, _ b: CGFloat) {
+        ctx.setFillColor(CGColor(srgbRed: r, green: gr, blue: b, alpha: 0.75))
+        ctx.fill(CGRect(x: x + 1, y: y + 1, width: bs - 2, height: bs - 2))
+        // Highlight (visual top = higher y in non-flipped coords)
+        ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.2))
+        ctx.fill(CGRect(x: x + 1, y: y + bs - 5, width: bs - 2, height: 4))
+        // Shadow (visual bottom)
+        ctx.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.2))
+        ctx.fill(CGRect(x: x + 1, y: y + 1, width: bs - 2, height: 4))
+    }
+
+    // Tetromino colors: cyan, yellow, purple, green, red, blue, orange
+    let colors: [(CGFloat, CGFloat, CGFloat)] = [
+        (0.0, 0.85, 0.85), (1.0, 1.0, 0.0), (0.6, 0.2, 0.85),
+        (0.0, 0.85, 0.0), (1.0, 0.2, 0.2), (0.2, 0.3, 1.0), (1.0, 0.6, 0.0),
+    ]
+
+    // Stacked blocks along the bottom (like a game in progress)
+    let totalBlocks = 10
+    let totalWidth = CGFloat(totalBlocks) * bs
+    let startX = (size - totalWidth) / 2
+    let bottomY: CGFloat = 25
+
+    // Full bottom row
+    for i in 0..<totalBlocks {
+        let c = colors[i % colors.count]
+        block(startX + CGFloat(i) * bs, bottomY, c.0, c.1, c.2)
+    }
+    // Second row - gaps in the middle
+    for i in [0, 1, 2, 5, 6, 7, 8, 9] {
+        let c = colors[(i + 3) % colors.count]
+        block(startX + CGFloat(i) * bs, bottomY + bs, c.0, c.1, c.2)
+    }
+    // Third row - sparser
+    for i in [0, 1, 7, 8, 9] {
+        let c = colors[(i + 5) % colors.count]
+        block(startX + CGFloat(i) * bs, bottomY + bs * 2, c.0, c.1, c.2)
+    }
+
+    // :( sad face centered in upper area
+    let font = NSFont.monospacedSystemFont(ofSize: 180, weight: .black)
+    let text: NSString = ":("
+    let attrs: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: NSColor.white,
+    ]
+    let textSize = text.size(withAttributes: attrs)
+    let textOrigin = CGPoint(
+        x: (size - textSize.width) / 2,
+        y: (size - textSize.height) / 2 + 60
+    )
+    text.draw(at: textOrigin, withAttributes: attrs)
+
+    image.unlockFocus()
+    return image
+}
 
 // MARK: - App Entry Point
 
 @main
 struct SadtrisApp: App {
+    init() {
+        NSApplication.shared.applicationIconImage = generateAppIcon()
+    }
+
     var body: some Scene {
         WindowGroup {
             GameView()
