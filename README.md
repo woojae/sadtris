@@ -31,6 +31,7 @@ Requires macOS 13+ and Swift 5.9+.
 ```sh
 swift build -c release
 cp .build/release/Sadtris Sadtris.app/Contents/MacOS/Sadtris
+cp Resources/AppIcon.icns Sadtris.app/Contents/Resources/AppIcon.icns
 open Sadtris.app
 ```
 
